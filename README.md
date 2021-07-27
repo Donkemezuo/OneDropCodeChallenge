@@ -23,7 +23,7 @@ The application also supports the following features;
     - UITableView 
     - UICollectionView 
     - Xib Files
-- Toucan for downloading images 
+- KingFisher library for downloading images 
 
 
 
