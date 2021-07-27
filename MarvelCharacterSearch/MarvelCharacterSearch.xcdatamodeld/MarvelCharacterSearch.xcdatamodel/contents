@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="1" systemVersion="11A491" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="false" userDefinedModelVersionIdentifier="">
-    <elements/>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="17709" systemVersion="19H1030" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    <entity name="CharacterSeries" representedClassName="CharacterSeries" syncable="YES" codeGenerationType="class">
+        <attribute name="characterID" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="endYear" optional="YES" attributeType="String"/>
+        <attribute name="seriesID" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="startYear" optional="YES" attributeType="String"/>
+        <attribute name="thumbnailString" optional="YES" attributeType="String"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="MarvelCharacter" representedClassName="MarvelCharacter" syncable="YES" codeGenerationType="class">
+        <attribute name="about" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="thumbnailString" optional="YES" attributeType="String"/>
+    </entity>
+    <elements>
+        <element name="MarvelCharacter" positionX="-63" positionY="-18" width="128" height="103"/>
+        <element name="CharacterSeries" positionX="-54" positionY="18" width="128" height="133"/>
+    </elements>
 </model>
