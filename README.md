@@ -6,7 +6,7 @@ The application also supports the following features;
 - Store remote data locally for offline use. 
 - Clicking on a marvel character, navigates users to a detailed view where more informations about a character is displayed. 
 - The detail view shows the following Marvel character informations
-- Character Name 
+-  - Character Name 
 - Character Picture 
 - Description about a character 
 - Series the character featured in
