@@ -40,23 +40,10 @@ extension Image {
     }
 }
 
-/// A Kingfisher compatible SwiftUI `View` to load an image from a `Source`.
-/// Declaring a `KFImage` in a `View`'s body to trigger loading from the given `Source`.
 @available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
 public struct KFImage: View {
 
-    // TODO: Replace `@ObservedObject` with `@StateObject` once we do not need to support iOS 13.
-    /// An image binder that manages loading and cancelling image related task.
-    @ObservedObject private(set) var binder: ImageBinder
-
-    // Acts as a placeholder when loading an image.
-    var placeholder: AnyView?
-
-    // Whether the download task should be cancelled when the view disappears.
-    var cancelOnDisappear: Bool = false
-
-    // Configurations should be performed on the image.
-    var configurations: [(Image) -> Image]
+    var context: Context
 
     /// Creates a Kingfisher compatible image view to load image from the given `Source`.
     /// - Parameter source: The image `Source` defining where to load the target image.
@@ -70,10 +57,8 @@ public struct KFImage: View {
     ///               for more.
     @available(*, deprecated, message: "Some options are not available in SwiftUI yet. Use `KFImage(source:isLoaded:)` to create a `KFImage` and configure the options through modifier instead.")
     public init(source: Source?, options: KingfisherOptionsInfo? = nil, isLoaded: Binding<Bool> = .constant(false)) {
-        let binder = ImageBinder(source: source, options: options, isLoaded: isLoaded)
-        self.binder = binder
-        configurations = []
-        binder.start()
+        let binder = KFImage.ImageBinder(source: source, options: options, isLoaded: isLoaded)
+        self.init(binder: binder)
     }
 
     /// Creates a Kingfisher compatible image view to load image from the given `URL`.
@@ -87,7 +72,7 @@ public struct KFImage: View {
     ///               `KFImage` and configure the options through modifier instead. See methods of `KFOptionSetter`
     ///               for more.
     @available(*, deprecated, message: "Some options are not available in SwiftUI yet. Use `KFImage(_:isLoaded:)` to create a `KFImage` and configure the options through modifier instead.")
-    public init(_ url: URL?, options: KingfisherOptionsInfo? = nil, isLoaded: Binding<Bool> = .constant(false)) {
+    init(_ url: URL?, options: KingfisherOptionsInfo? = nil, isLoaded: Binding<Bool> = .constant(false)) {
         self.init(source: url?.convertToSource(), options: options, isLoaded: isLoaded)
     }
 
@@ -99,10 +84,7 @@ public struct KFImage: View {
     ///               wrapped value from outside.
     public init(source: Source?, isLoaded: Binding<Bool> = .constant(false)) {
         let binder = ImageBinder(source: source, isLoaded: isLoaded)
-        self.binder = binder
-        configurations = []
-        // Give the `binder` a chance to accept other configurations.
-        DispatchQueue.main.async { binder.start() }
+        self.init(binder: binder)
     }
 
     /// Creates a Kingfisher compatible image view to load image from the given `URL`.
@@ -115,43 +97,147 @@ public struct KFImage: View {
         self.init(source: url?.convertToSource(), isLoaded: isLoaded)
     }
 
-    /// Declares the content and behavior of this view.
+    init(binder: ImageBinder) {
+        self.context = Context(binder: binder)
+    }
+
     public var body: some View {
-        Group {
-            if binder.image != nil {
-                configurations
-                    .reduce(Image(crossPlatformImage: binder.image!)) {
-                        current, config in config(current)
-                    }
-            } else {
-                Group {
-                    if placeholder != nil {
-                        placeholder
-                    } else {
-                        Image(crossPlatformImage: .init())
-                    }
+        KFImageRenderer(context)
+            .id(context.binder)
+    }
+
+    /// Starts the loading process of `self` immediately.
+    ///
+    /// By default, a `KFImage` will not load its source until the `onAppear` is called. This is a lazily loading
+    /// behavior and provides better performance. However, when you refresh the view, the lazy loading also causes a
+    /// flickering since the loading does not happen immediately. Call this method if you want to start the load at once
+    /// could help avoiding the flickering, with some performance trade-off.
+    ///
+    /// - Returns: The `Self` value with changes applied.
+    public func loadImmediately(_ start: Bool = true) -> KFImage {
+        if start {
+            context.binder.start()
+        }
+        return self
+    }
+}
+
+@available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
+extension KFImage {
+    struct Context {
+        var binder: ImageBinder
+        var configurations: [(Image) -> Image] = []
+        var cancelOnDisappear: Bool = false
+        var placeholder: AnyView? = nil
+
+        init(binder: ImageBinder) {
+            self.binder = binder
+        }
+    }
+}
+
+/// A Kingfisher compatible SwiftUI `View` to load an image from a `Source`.
+/// Declaring a `KFImage` in a `View`'s body to trigger loading from the given `Source`.
+@available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
+struct KFImageRenderer: View {
+
+    /// An image binder that manages loading and cancelling image related task.
+    @ObservedObject var binder: KFImage.ImageBinder
+
+    // Acts as a placeholder when loading an image.
+    var placeholder: AnyView?
+
+    // Whether the download task should be cancelled when the view disappears.
+    let cancelOnDisappear: Bool
+
+    // Configurations should be performed on the image.
+    let configurations: [(Image) -> Image]
+
+    init(_ context: KFImage.Context) {
+        self.binder = context.binder
+        self.configurations = context.configurations
+        self.placeholder = context.placeholder
+        self.cancelOnDisappear = context.cancelOnDisappear
+    }
+
+    /// Declares the content and behavior of this view.
+    var body: some View {
+        if let image = binder.loadedImage {
+            configurations
+                .reduce(imageFromResult(image)) {
+                    current, config in config(current)
                 }
-                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-                .onAppear { [weak binder = self.binder] in
-                    guard let binder = binder else {
-                        return
-                    }
-                    if !binder.loadingOrSucceeded {
-                        binder.start()
-                    }
+                .opacity(binder.loaded ? 1.0 : 0.0)
+        } else {
+            Group {
+                if placeholder != nil {
+                    placeholder
+                } else {
+                    Color.clear
                 }
-                .onDisappear { [weak binder = self.binder] in
-                    guard let binder = binder else {
-                        return
-                    }
-                    if self.cancelOnDisappear {
-                        binder.cancel()
-                    }
+            }
+            .onAppear { [weak binder = self.binder] in
+                guard let binder = binder else {
+                    return
+                }
+                if !binder.loadingOrSucceeded {
+                    binder.start()
+                }
+            }
+            .onDisappear { [weak binder = self.binder] in
+                guard let binder = binder else {
+                    return
+                }
+                if self.cancelOnDisappear {
+                    binder.cancel()
                 }
             }
         }
     }
+
+    private func imageFromResult(_ resultImage: KFCrossPlatformImage) -> Image {
+        if #available(macOS 11.0, iOS 14.0, watchOS 7.0, tvOS 14.0, *) {
+            return Image(crossPlatformImage: resultImage)
+        } else {
+            #if canImport(UIKit)
+            // The CG image is used to solve #1395
+            // It should be not necessary if SwiftUI.Image can handle resizing correctly when created
+            // by `Image.init(uiImage:)`. (The orientation information should be already contained in
+            // a `UIImage`)
+            // https://github.com/onevcat/Kingfisher/issues/1395
+            //
+            // This issue happens on iOS 13 and was fixed by Apple from iOS 14.
+            if let cgImage = resultImage.cgImage {
+                return Image(decorative: cgImage, scale: resultImage.scale, orientation: resultImage.imageOrientation.toSwiftUI())
+            } else {
+                return Image(crossPlatformImage: resultImage)
+            }
+            #else
+            return Image(crossPlatformImage: resultImage)
+            #endif
+
+        }
+    }
 }
+
+#if canImport(UIKit)
+@available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
+extension UIImage.Orientation {
+    func toSwiftUI() -> Image.Orientation {
+        switch self {
+        case .down: return .down
+        case .up: return .up
+        case .left: return .left
+        case .right: return .right
+        case .upMirrored: return .upMirrored
+        case .downMirrored: return .downMirrored
+        case .leftMirrored: return .leftMirrored
+        case .rightMirrored: return .rightMirrored
+        @unknown default: return .up
+        }
+    }
+}
+#endif
 
 // MARK: - Image compatibility.
 @available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
@@ -162,7 +248,7 @@ extension KFImage {
     /// - Returns: A `KFImage` view that configures internal `Image` with `block`.
     public func configure(_ block: @escaping (Image) -> Image) -> KFImage {
         var result = self
-        result.configurations.append(block)
+        result.context.configurations.append(block)
         return result
     }
 
@@ -191,7 +277,7 @@ extension KFImage {
 struct KFImage_Previews : PreviewProvider {
     static var previews: some View {
         Group {
-            KFImage(URL(string: "https://raw.githubusercontent.com/onevcat/Kingfisher/master/images/logo.png")!)
+            KFImage(source: .network(URL(string: "https://raw.githubusercontent.com/onevcat/Kingfisher/master/images/logo.png")!))
                 .onSuccess { r in
                     print(r)
                 }

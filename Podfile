@@ -8,14 +8,4 @@ target 'MarvelCharacterSearch' do
 
   # Pods for MarvelCharacterSearch
    pod 'Kingfisher'
-
-  target 'MarvelCharacterSearchTests' do
-    inherit! :search_paths
-    # Pods for testing
   end
-
-  target 'MarvelCharacterSearchUITests' do
-    # Pods for testing
-  end
-
-end
